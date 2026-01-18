@@ -1,6 +1,22 @@
-# Z-Image Data Pipeline
+# Multimodal Data Pipeline
 
-A high-performance, distributed image data processing pipeline built with Ray, featuring Rust-accelerated operators and GPU-optimized CLIP embedding extraction.
+A high-performance, distributed opensource web-scale (hundrends of billions) multimodal data processing pipelines built with Ray, featuring Rust-accelerated and GPU-optimized operators.
+
+This repository aims to replicate SOTA multimodal datapipelines, like
+
+- [Z-Image: An Efficient Image Generation Foundation Model](https://arxiv.org/pdf/2511.22699)
+- [Qwen3-VL](https://arxiv.org/pdf/2511.21631)
+- [Qwen-Image](https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-Image/Qwen_Image.pdf)
+- [HunyuanImage 3.0](https://arxiv.org/pdf/2509.23951)
+- [HunyuanORC](https://github.com/Tencent-Hunyuan/HunyuanOCR)
+- [PaddleOCR 3.0](https://arxiv.org/pdf/2507.05595)
+- [PaddleOCR-VL](https://arxiv.org/pdf/2510.14528)
+- [Seed1.5-VL](https://arxiv.org/pdf/2505.07062)
+- [SeedEdit 3.0](https://arxiv.org/pdf/2506.05083)
+- [BAGEL: The Open-Source Unified Multimodal Model](https://arxiv.org/pdf/2505.14683)
+- [HoneyBee: Data Recipes for Vision-Language Reasoners](https://arxiv.org/pdf/2510.12225)
+- [MiMo-VL](https://arxiv.org/pdf/2506.03569)
+- [Cosmos World Foundation Model Platform for Physical AI](https://arxiv.org/pdf/2501.03575)
 
 ## Architecture
 
