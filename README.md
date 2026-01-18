@@ -137,6 +137,7 @@ gantt
 ```
 
 > **Key Points**:
+>
 > - **CPU Pool**: 8 workers for metadata, quality (🦀 Rust), filtering, dedup
 > - **GPU Pool**: 2 workers for CLIP embeddings (limited by VRAM)
 > - **Load Balancing**: Ray auto-distributes batches to idle workers
@@ -376,7 +377,7 @@ Removes duplicate images using perceptual hashing (Rust-accelerated).
 
 Benchmark on Mac M1 Pro (MPS):
 
-```
+```text
 ============================================================
 Operator Performance Statistics:
 ============================================================
@@ -429,7 +430,7 @@ python test.py
 
 ## Project Structure
 
-```
+```text
 datapipeline_z_image/
 ├── framework/
 │   ├── operator.py      # Base classes: Operator, Refiner, Filter, Deduplicator

@@ -65,6 +65,7 @@ dmypy.json
 # Project specific
 iceberg_data/
 parquet_data/
+training_data/
 *.parquet
 profiling_results.json
 *.log

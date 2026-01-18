@@ -2,107 +2,78 @@
 
 This package contains model training and inference code for the Z-Image data pipeline.
 
-## Structure
+## Available Models
 
-```
+| Model | Description | Documentation |
+|-------|-------------|---------------|
+| [Quality Assessment](./quality_assessment/) | Multi-head CNN for visual degradation detection (color cast, blur, watermark, noise) | [README](./quality_assessment/README.md) |
+| [KMeans Clustering](./kmeans/) | Distributed KMeans for semantic deduplication | [README](./kmeans/README.md) |
+| [Classifier](./classifier/) | Base classification model trainer | - |
+
+## Directory Structure
+
+```text
 models/
-├── kmeans/              # KMeans clustering for semantic deduplication
-│   ├── trainer.py       # Model training
-│   └── inference.py     # Model inference
-├── classifier/          # Classification models
-│   └── trainer.py       # Base classifier trainer
-├── quality_assessment/  # Quality assessment models
-│   ├── trainer.py       # Model training
-│   └── inference.py     # Model inference
-├── train_kmeans.py     # Training script for KMeans
-└── train_quality_assessment.py  # Training script for quality model
+├── quality_assessment/     # Visual degradation assessment
+│   ├── trainer.py          # Multi-head model & trainer
+│   ├── inference.py        # Inference wrapper
+│   ├── synthetic_data.py   # Synthetic training data generation
+│   └── README.md           # Detailed documentation
+├── kmeans/                 # KMeans clustering
+│   ├── trainer.py          # Local trainer
+│   ├── distributed_trainer.py  # Ray distributed trainer
+│   ├── distributed_train.py    # Training script
+│   └── inference.py        # Inference wrapper
+├── classifier/             # Classification models
+│   └── trainer.py          # Base classifier trainer
+├── train_kmeans.py         # KMeans training entry point
+└── train_quality_assessment.py  # Quality model training entry point
 ```
 
-## KMeans Clustering
+## Quick Start
 
-Used for semantic deduplication by clustering similar images.
+### Quality Assessment
 
-### Distributed Training (Recommended)
-
-Train distributed KMeans using Ray with parquet files as input:
+Detect visual degradations (color cast, blurriness, watermark, noise):
 
 ```bash
+# Generate synthetic training data from HuggingFace
+python -m models.train_quality_assessment generate_hf \
+    --dataset tiny-imagenet \
+    --output_dir ./training_data \
+    --num_images 1000
+
+# Train the model
+python -m models.train_quality_assessment train \
+    --train_images ./training_data/images.npy \
+    --train_labels ./training_data/labels.npy \
+    --epochs 50
+```
+
+See [quality_assessment/README.md](./quality_assessment/README.md) for architecture details.
+
+### KMeans Clustering
+
+Cluster image embeddings for semantic deduplication:
+
+```bash
+# Distributed training with Ray
 python models/kmeans/distributed_train.py \
     --data_urls ./data/features_*.parquet \
     --n_clusters 100 \
-    --n_workers 4 \
-    --output_dir ./kmeans_training
-```
+    --n_workers 4
 
-**Input Format:**
-- Parquet files must have two columns:
-  - `id` (string): Unique identifier for each record
-  - `feature` (array/embedding): Feature vector for clustering
-
-**Output:**
-- Intermediate files: `iter_{iteration}_shard_{worker_id}_assignments.npy`
-- Centroids: `iter_{iteration}/centroids.npy`
-- Final model: Saved to specified `--model_path`
-
-### Local Training
-
-For small datasets, use the local trainer:
-
-```bash
+# Local training
 python models/train_kmeans.py \
     --features_path features.npy \
-    --n_clusters 100 \
-    --output_path ./models/kmeans/kmeans_model.pkl
-```
-
-### Usage in Pipeline
-
-The cluster IDs can be used as bucket IDs for semantic deduplication:
-
-```python
-from models.kmeans.inference import KMeansInference
-
-# Load model
-inference = KMeansInference(model_path="./models/kmeans/kmeans_model.pkl")
-
-# Get cluster ID (bucket ID)
-cluster_id = inference.predict_cluster(image_feature)
-```
-
-## Quality Assessment Model
-
-Neural network model for assessing visual degradations.
-
-### Training
-
-```bash
-python models/train_quality_assessment.py \
-    --train_images train_images.npy \
-    --train_labels train_labels.npy \
-    --output_path ./models/quality_assessment/quality_model.pth \
-    --epochs 10 \
-    --batch_size 32 \
-    --device cuda
-```
-
-### Usage in Pipeline
-
-```python
-from models.quality_assessment.inference import QualityAssessmentInference
-
-# Load model
-inference = QualityAssessmentInference(
-    model_path="./models/quality_assessment/quality_model.pth",
-    device="cuda"
-)
-
-# Predict quality score
-score = inference.predict_from_bytes(image_bytes)
+    --n_clusters 100
 ```
 
 ## Integration with Pipeline
 
-These models can be integrated into the pipeline operators:
+These models integrate with pipeline operators:
 
-1. **KMeans**: Used in `SemanticDeduplicator` to assign cluster IDs
-2. **Quality Assessment**: Used in `VisualDegradationsRefiner` to assess image quality
+| Model | Operator | Purpose |
+|-------|----------|---------|
+| Quality Assessment | `VisualDegradationsRefiner` | Score images on degradation factors |
+| KMeans | `SemanticDeduplicator` | Assign cluster IDs for deduplication |
