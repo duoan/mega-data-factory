@@ -123,7 +123,7 @@ data_writer:
     table_name: "z_image" # Base name for output files
 
 executor:
-  max_samples: 102400
+  max_samples: 10240
   batch_size: 1024
   dedup_num_buckets: 2
   # dedup_num_buckets: 16  # Default: 16 buckets (sufficient for small datasets)

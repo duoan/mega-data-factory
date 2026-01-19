@@ -119,7 +119,7 @@ def _print_stats(operator_stats):
         if "_stage_summary" in stage_ops:
             summary = stage_ops["_stage_summary"]
             print("  [Stage Summary]")
-            print(f"    Records: {summary['total_records']}")
+            print(f"    Input: {summary['input_records']} -> Output: {summary['output_records']} ({summary['pass_rate']:.1f}% pass)")
             print(f"    Total time: {summary['total_time']:.2f}s")
             print(f"    Throughput: {summary['throughput']:.2f} records/sec")
             print()
@@ -129,7 +129,7 @@ def _print_stats(operator_stats):
             if op_name == "_stage_summary":
                 continue
             print(f"  {op_name}:")
-            print(f"    Records: {op_stats.get('total_records', 0)}")
+            print(f"    Input: {op_stats.get('input_records', 0)} -> Output: {op_stats.get('output_records', 0)} ({op_stats.get('pass_rate', 0.0):.1f}% pass)")
             print(f"    Total time: {op_stats.get('total_time', 0.0):.2f}s")
             print(f"    Avg latency: {op_stats.get('avg_latency', 0.0) * 1000:.2f}ms")
             print(

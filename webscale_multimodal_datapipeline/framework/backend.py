@@ -7,6 +7,7 @@ Provides deduplication backend with bucketing.
 from collections.abc import Callable
 
 import ray
+import ray.exceptions
 
 
 @ray.remote

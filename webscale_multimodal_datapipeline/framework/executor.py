@@ -121,7 +121,7 @@ class Executor:
                     num_cpus=num_cpus,
                     num_gpus=num_gpus,
                     resources=ray_resources if ray_resources else None,
-                ).remote(worker_name, stage_operators, data_writer=worker_writer, num_cpus=num_cpus)
+                ).remote(worker_name, stage_operators, data_writer=worker_writer)
 
                 stage_workers.append(worker)
 
@@ -337,14 +337,16 @@ class Executor:
                         for op_name, op_stats in worker_stats.items():
                             if op_name not in aggregated_stats:
                                 aggregated_stats[op_name] = {
-                                    "total_records": 0,
+                                    "input_records": 0,
+                                    "output_records": 0,
                                     "total_time": 0.0,
                                     "min_latency": float("inf"),
                                     "max_latency": 0.0,
                                 }
 
                             # Aggregate records and time (sum across all workers)
-                            aggregated_stats[op_name]["total_records"] += op_stats.get("total_records", 0)
+                            aggregated_stats[op_name]["input_records"] += op_stats.get("input_records", 0)
+                            aggregated_stats[op_name]["output_records"] += op_stats.get("output_records", 0)
                             aggregated_stats[op_name]["total_time"] += op_stats.get("total_time", 0.0)
 
                             # Aggregate min/max latencies
@@ -359,12 +361,14 @@ class Executor:
 
                     # Calculate final statistics for each operator
                     for op_name, agg_stats in aggregated_stats.items():
-                        total_records = agg_stats["total_records"]
+                        input_records = agg_stats["input_records"]
+                        output_records = agg_stats["output_records"]
                         total_time = agg_stats["total_time"]
 
-                        if total_records > 0 and total_time > 0:
-                            avg_latency = total_time / total_records
-                            throughput = total_records / total_time
+                        if input_records > 0 and total_time > 0:
+                            pass_rate = 100.0 * output_records / input_records
+                            avg_latency = total_time / input_records
+                            throughput = input_records / total_time
 
                             # Use percentile from first worker as approximation
                             # (full percentile calculation would require all latency data)
@@ -376,7 +380,9 @@ class Executor:
                                 p99 = first_op_stats.get("p99_latency", avg_latency)
 
                             stats[stage_name][op_name] = {
-                                "total_records": total_records,
+                                "input_records": input_records,
+                                "output_records": output_records,
+                                "pass_rate": pass_rate,
                                 "total_time": total_time,
                                 "avg_latency": avg_latency,
                                 "min_latency": agg_stats["min_latency"]
@@ -392,19 +398,26 @@ class Executor:
                     # Calculate stage-level throughput
                     # Use the slowest operator's time (bottleneck) and total records processed
                     total_stage_time = 0.0
-                    total_stage_records = 0
+                    total_stage_input = 0
+                    total_stage_output = 0
                     for op_stats in stats[stage_name].values():
                         total_stage_time = max(
                             total_stage_time, op_stats.get("total_time", 0.0)
                         )  # Bottleneck (max time)
-                        total_stage_records = max(
-                            total_stage_records, op_stats.get("total_records", 0)
-                        )  # Records processed by slowest operator
+                        total_stage_input = max(
+                            total_stage_input, op_stats.get("input_records", 0)
+                        )
+                        total_stage_output = max(
+                            total_stage_output, op_stats.get("output_records", 0)
+                        )
 
-                    if total_stage_time > 0 and total_stage_records > 0:
-                        stage_throughput = total_stage_records / total_stage_time
+                    if total_stage_time > 0 and total_stage_input > 0:
+                        stage_throughput = total_stage_input / total_stage_time
+                        stage_pass_rate = 100.0 * total_stage_output / total_stage_input
                         stats[stage_name]["_stage_summary"] = {
-                            "total_records": total_stage_records,
+                            "input_records": total_stage_input,
+                            "output_records": total_stage_output,
+                            "pass_rate": stage_pass_rate,
                             "total_time": total_stage_time,
                             "throughput": stage_throughput,
                         }

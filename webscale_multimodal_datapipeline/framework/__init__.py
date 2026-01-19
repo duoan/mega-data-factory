@@ -48,10 +48,7 @@ from .registry import (
 )
 
 # Worker classes
-from .worker import (
-    RayWorker,
-    Worker,
-)
+from .worker import RayWorker
 
 # Export all public APIs
 __all__ = [
@@ -79,7 +76,6 @@ __all__ = [
     "DataLoader",
     "DataWriter",
     # Worker
-    "Worker",
     "RayWorker",
     # Executor
     "Executor",

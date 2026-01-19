@@ -18,7 +18,8 @@ class Operator(ABC):
 
     def __init__(self):
         self._stats = {
-            "total_records": 0,
+            "input_records": 0,
+            "output_records": 0,
             "total_time": 0.0,
             "min_latency": float("inf"),
             "max_latency": 0.0,
@@ -31,14 +32,17 @@ class Operator(ABC):
         results = self._process_batch_impl(records)
         batch_latency = time.perf_counter() - start_time
 
-        num_records = len(records)
-        if num_records > 0:
-            self._stats["total_records"] += num_records
+        num_input = len(records)
+        num_output = sum(1 for r in results if r is not None)
+
+        if num_input > 0:
+            self._stats["input_records"] += num_input
+            self._stats["output_records"] += num_output
             self._stats["total_time"] += batch_latency
-            per_record_latency = batch_latency / num_records
+            per_record_latency = batch_latency / num_input
             self._stats["min_latency"] = min(self._stats["min_latency"], per_record_latency)
             self._stats["max_latency"] = max(self._stats["max_latency"], per_record_latency)
-            self._stats["_latencies"].extend([per_record_latency] * num_records)
+            self._stats["_latencies"].extend([per_record_latency] * num_input)
             if len(self._stats["_latencies"]) > 10000:
                 self._stats["_latencies"] = self._stats["_latencies"][-10000:]
 
@@ -54,7 +58,9 @@ class Operator(ABC):
 
         Returns:
             Dictionary with performance metrics:
-            - total_records: Total number of records processed
+            - input_records: Total number of input records
+            - output_records: Total number of output records (after filtering)
+            - pass_rate: Percentage of records that passed through
             - total_time: Total processing time (seconds)
             - avg_latency: Average latency per record (seconds)
             - min_latency: Minimum latency (seconds)
@@ -65,11 +71,14 @@ class Operator(ABC):
             - throughput: Records per second
         """
         stats = self._stats.copy()
-        total_records = stats["total_records"]
+        input_records = stats["input_records"]
+        output_records = stats["output_records"]
 
-        if total_records == 0:
+        if input_records == 0:
             return {
-                "total_records": 0,
+                "input_records": 0,
+                "output_records": 0,
+                "pass_rate": 0.0,
                 "total_time": 0.0,
                 "avg_latency": 0.0,
                 "min_latency": 0.0,
@@ -80,7 +89,8 @@ class Operator(ABC):
                 "throughput": 0.0,
             }
 
-        avg_latency = stats["total_time"] / total_records
+        pass_rate = 100.0 * output_records / input_records
+        avg_latency = stats["total_time"] / input_records
         min_latency = stats["min_latency"] if stats["min_latency"] != float("inf") else 0.0
         max_latency = stats["max_latency"]
 
@@ -94,10 +104,12 @@ class Operator(ABC):
         else:
             p50 = p95 = p99 = 0.0
 
-        throughput = total_records / stats["total_time"] if stats["total_time"] > 0 else 0.0
+        throughput = input_records / stats["total_time"] if stats["total_time"] > 0 else 0.0
 
         return {
-            "total_records": total_records,
+            "input_records": input_records,
+            "output_records": output_records,
+            "pass_rate": pass_rate,
             "total_time": stats["total_time"],
             "avg_latency": avg_latency,
             "min_latency": min_latency,
@@ -111,12 +123,12 @@ class Operator(ABC):
     def reset_stats(self):
         """Reset performance statistics."""
         self._stats = {
-            "total_records": 0,
+            "input_records": 0,
+            "output_records": 0,
             "total_time": 0.0,
             "min_latency": float("inf"),
             "max_latency": 0.0,
             "_latencies": [],
-            "start_time": None,
         }
 
     def get_output_schema(self) -> dict[str, pa.DataType]:

@@ -2441,6 +2441,7 @@ source = { editable = "." }
 dependencies = [
     { name = "datasets" },
     { name = "ffmpeg-python" },
+    { name = "fsspec" },
     { name = "huggingface-hub" },
     { name = "imagehash" },
     { name = "joblib" },
@@ -2472,6 +2473,7 @@ ml = [
 requires-dist = [
     { name = "datasets", specifier = ">=4.5.0" },
     { name = "ffmpeg-python", specifier = ">=0.2.0" },
+    { name = "fsspec", specifier = ">=2025.10.0" },
     { name = "huggingface-hub", specifier = ">=0.20.0" },
     { name = "imagehash", specifier = ">=4.3.2" },
     { name = "joblib", specifier = ">=1.3.0" },
