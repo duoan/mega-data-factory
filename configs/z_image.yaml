@@ -132,3 +132,11 @@ executor:
   # num_cpus: Optional - Only for local development to limit Ray CPU usage.
   # In distributed clusters, CPU is managed by the cluster itself.
   # Leave unset to let Ray auto-detect available CPUs.
+
+  # Rejected samples collection for deep dive analysis
+  # When enabled, samples filtered out by Filter operators or removed by Deduplicator
+  # operators are saved separately with rejection metadata (_rejection_reason, _rejected_by, etc.)
+  rejected_samples:
+    enabled: true  # Set to true to enable rejected samples collection
+    # output_path: "./parquet_data_rejected"  # Optional: custom output path (defaults to data_writer.output_path + "_rejected")
+    # writer_type: ParquetDataWriter  # Optional: custom writer type (defaults to data_writer.type)

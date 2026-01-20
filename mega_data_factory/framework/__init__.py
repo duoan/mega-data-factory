@@ -22,6 +22,7 @@ from .config import (
     ExecutorConfig,
     OperatorConfig,
     PipelineConfig,
+    RejectedSamplesConfig,
     StageConfig,
     StageWorkerConfig,
 )
@@ -33,6 +34,7 @@ from .executor import (
 
 # Operator classes
 from .operator import (
+    BatchResult,
     CombinedOperator,
     Deduplicator,
     Filter,
@@ -48,7 +50,7 @@ from .registry import (
 )
 
 # Worker classes
-from .worker import RayWorker
+from .worker import RayWorker, WorkerBatchResult
 
 # Export all public APIs
 __all__ = [
@@ -59,6 +61,7 @@ __all__ = [
     "DataLoaderConfig",
     "DataWriterConfig",
     "ExecutorConfig",
+    "RejectedSamplesConfig",
     "PipelineConfig",
     # Operator
     "Operator",
@@ -66,6 +69,7 @@ __all__ = [
     "Filter",
     "Deduplicator",
     "CombinedOperator",
+    "BatchResult",
     # Backend
     "DedupBackend",
     # Registry
@@ -77,6 +81,7 @@ __all__ = [
     "DataWriter",
     # Worker
     "RayWorker",
+    "WorkerBatchResult",
     # Executor
     "Executor",
 ]

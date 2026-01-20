@@ -27,6 +27,9 @@ class Executor:
         """
         self.config = config
 
+        # Check if rejected samples collection is enabled
+        self.collect_rejected = config.executor.rejected_samples.enabled
+
         # Create data loader
         self.data_loader = DataLoaderRegistry.create(config.data_loader.type, config.data_loader.params)
 
@@ -63,13 +66,43 @@ class Executor:
             if has_dedup:
                 # Use bucketing to avoid single actor bottleneck
                 num_buckets = config.executor.dedup_num_buckets
-                shared_dedup_backend = DedupBackend(num_buckets=num_buckets, name_prefix="pipeline_dedup_backend")
+                # Enable representative tracking when collecting rejected samples
+                # This allows us to record which sample was the "first seen" for each dedup key
+                track_representative = self.collect_rejected
+                shared_dedup_backend = DedupBackend(
+                    num_buckets=num_buckets,
+                    name_prefix="pipeline_dedup_backend",
+                    track_representative=track_representative,
+                )
                 # Reset backend state at start of each run to clear previous data
                 shared_dedup_backend.reset()
 
         # Create data writer (each worker will get its own instance)
         # Store writer config to create instances per worker
         self.writer_config = config.data_writer
+
+        # Setup rejected samples writer config if enabled
+        self.rejected_writer_config = None
+        if self.collect_rejected:
+            rejected_config = config.executor.rejected_samples
+            # Use configured writer type or fall back to main writer type
+            rejected_writer_type = rejected_config.writer_type or config.data_writer.type
+            # Use configured output path or derive from main output path
+            rejected_output_path = rejected_config.output_path
+            if not rejected_output_path:
+                # Derive from main output path by appending "_rejected"
+                main_output_path = config.data_writer.params.get("output_path", "output")
+                rejected_output_path = f"{main_output_path}_rejected"
+
+            self.rejected_writer_config = {
+                "type": rejected_writer_type,
+                "params": {
+                    **config.data_writer.params,
+                    "output_path": rejected_output_path,
+                    "table_name": config.data_writer.params.get("table_name", "default") + "_rejected",
+                },
+            }
+            print(f"Rejected samples collection enabled. Output: {rejected_output_path}")
 
         # Create stages (Ray Actors)
         # Store workers grouped by stage (each stage has multiple replicas)
@@ -105,6 +138,14 @@ class Executor:
                 worker_writer_params = writer_params.copy()
                 worker_writer = DataWriterRegistry.create(self.writer_config.type, worker_writer_params)
 
+                # Create rejected writer if enabled
+                rejected_writer = None
+                if self.collect_rejected and self.rejected_writer_config:
+                    rejected_writer = DataWriterRegistry.create(
+                        self.rejected_writer_config["type"],
+                        self.rejected_writer_config["params"].copy(),
+                    )
+
                 worker_name = f"{stage_config.name}_{replica_id}" if num_replicas > 1 else stage_config.name
 
                 # Extract num_cpus and num_gpus from resources if present, otherwise use defaults
@@ -121,7 +162,13 @@ class Executor:
                     num_cpus=num_cpus,
                     num_gpus=num_gpus,
                     resources=ray_resources if ray_resources else None,
-                ).remote(worker_name, stage_operators, data_writer=worker_writer)
+                ).remote(
+                    worker_name,
+                    stage_operators,
+                    data_writer=worker_writer,
+                    rejected_writer=rejected_writer,
+                    collect_rejected=self.collect_rejected,
+                )
 
                 stage_workers.append(worker)
 
@@ -404,12 +451,8 @@ class Executor:
                         total_stage_time = max(
                             total_stage_time, op_stats.get("total_time", 0.0)
                         )  # Bottleneck (max time)
-                        total_stage_input = max(
-                            total_stage_input, op_stats.get("input_records", 0)
-                        )
-                        total_stage_output = max(
-                            total_stage_output, op_stats.get("output_records", 0)
-                        )
+                        total_stage_input = max(total_stage_input, op_stats.get("input_records", 0))
+                        total_stage_output = max(total_stage_output, op_stats.get("output_records", 0))
 
                     if total_stage_time > 0 and total_stage_input > 0:
                         stage_throughput = total_stage_input / total_stage_time
