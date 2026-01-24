@@ -69,7 +69,7 @@ training_data/
 *.parquet
 profiling_results.json
 *.log
-metrics/
+/metrics/
 parquet_data_rejected/
 
 # Rust

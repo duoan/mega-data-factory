@@ -31,10 +31,14 @@ def main():
         help="Path to metrics directory containing Parquet files",
     )
     parser.add_argument(
+        "--run-id",
+        type=str,
+        help="Specific run ID to generate report for (if not specified, uses latest run)",
+    )
+    parser.add_argument(
         "--output",
         type=str,
-        default="metrics_report.html",
-        help="Output path for HTML report (default: metrics_report.html)",
+        help="Output path for HTML report (if not specified, auto-generated as report_run_{run_id}.html)",
     )
     parser.add_argument(
         "--huggingface-repo",
@@ -65,10 +69,14 @@ def main():
     # Create reporter
     reporter = MetricsReporter(args.metrics_path)
 
-    # Generate HTML report
-    print(f"Generating metrics report from: {args.metrics_path}")
+    # Generate single-run HTML report
+    run_id_str = f" for run {args.run_id}" if args.run_id else " (latest run)"
+    print(f"Generating metrics report from: {args.metrics_path}{run_id_str}")
     try:
-        report_path = reporter.generate_html_report(output_path=args.output)
+        report_path = reporter.generate_single_run_report(
+            run_id=args.run_id,  # None = use latest
+            output_path=args.output,
+        )
         print(f"✓ Report generated: {report_path}")
     except Exception as e:
         print(f"Error: Failed to generate report: {e}")

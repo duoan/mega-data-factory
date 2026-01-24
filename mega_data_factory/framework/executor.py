@@ -438,19 +438,21 @@ class Executor:
         )
 
     def _generate_metrics_report(self):
-        """Generate HTML metrics report and optionally publish to HuggingFace."""
-        if not self.metrics_writer:
+        """Generate single-run HTML metrics report and optionally publish to HuggingFace."""
+        if not self.metrics_writer or not self.metrics_collector:
             return
 
         from .metrics import MetricsReporter
 
-        print("\nGenerating metrics report...")
+        print("\nGenerating single-run metrics report...")
         reporter = MetricsReporter(self.metrics_writer.output_path)
 
-        # Generate HTML report
-        report_path = str(self.metrics_writer.output_path / "metrics_report.html")
-        reporter.generate_html_report(output_path=report_path)
-        print(f"Report generated: {report_path}")
+        # Get run_id
+        run_id = self.metrics_collector.run_id
+
+        # Generate HTML report for this run
+        report_path = reporter.generate_single_run_report(run_id=run_id)
+        print(f"✓ Report generated: {report_path}")
 
         # Publish to HuggingFace if configured
         metrics_config = self.config.executor.metrics
