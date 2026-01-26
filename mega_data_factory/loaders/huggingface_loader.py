@@ -11,9 +11,6 @@ No streaming parameter - the entire system is streaming by design.
 from collections.abc import Iterator
 from typing import Any
 
-import pyarrow.parquet as pq
-from huggingface_hub import HfFileSystem
-
 from mega_data_factory.framework import DataLoader
 
 
@@ -42,18 +39,20 @@ class HuggingFaceLoader(DataLoader):
         self.split = split
         self._file_list = None
 
-    def get_file_list(self) -> list[str]:
-        """[Layer 1] Get sorted list of data files from HuggingFace repo.
+    def get_file_list(self, max_samples: int | None = None, num_workers: int = 1) -> list[str]:
+        """Get sorted list of data files from HuggingFace repo.
 
-        This is called by the coordinator to get all files before distributing
-        to workers.
+        Args:
+            max_samples: Ignored (HuggingFace datasets have fixed files)
+            num_workers: Ignored
 
         Returns:
-            Sorted list of file paths (e.g., ["datasets/.../data/train-00000.parquet", ...])
+            Sorted list of file paths
         """
         if self._file_list is not None:
             return self._file_list
 
+        from huggingface_hub import HfFileSystem
         fs = HfFileSystem()
         repo_path = f"datasets/{self.dataset_name}"
 
@@ -100,6 +99,8 @@ class HuggingFaceLoader(DataLoader):
 
         if skip_records > 0:
             print(f"[{worker_label}] Resuming from record {skip_records}")
+
+        import pyarrow.parquet as pq
 
         # Process assigned files
         total_records = 0

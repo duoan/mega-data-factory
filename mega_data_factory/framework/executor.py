@@ -56,14 +56,9 @@ class Executor:
 
         # Initialize Ray (before creating operators that might need it)
         if not ray.is_initialized():
-            # In distributed clusters, Ray is already initialized.
-            # For local development, only limit if explicitly configured in config.
-            # In cluster mode or when num_cpus is None, let Ray manage resources automatically.
             if config.executor.num_cpus is not None:
                 ray.init(num_cpus=config.executor.num_cpus, ignore_reinit_error=True)
             else:
-                # No explicit limit - let Ray use all available CPUs
-                # This works correctly in both local and cluster mode
                 ray.init(ignore_reinit_error=True)
 
         # Create shared dedup backend if there are Deduplicator operators
@@ -273,7 +268,11 @@ class Executor:
         assigned_files_per_worker = None
         if hasattr(self.data_loader, "get_file_list"):
             print("  Scanning data files...")
-            all_files = self.data_loader.get_file_list()
+            # Pass max_samples and num_workers for loaders that auto-calculate file count
+            all_files = self.data_loader.get_file_list(
+                max_samples=config.executor.max_samples,
+                num_workers=num_workers,
+            )
             total_files = len(all_files)
 
             # Divide files among workers
@@ -458,12 +457,14 @@ class Executor:
         # Maintain a pipeline of batches being processed across stages
         batch_pipeline = {}  # batch_id -> (future, input_count, all_refs)
         next_batch_id = 0
-        total_workers = sum(len(stage) for stage in self.stages)
 
-        # BACKPRESSURE CONTROL: Aggressively limit in-flight batches
-        # Slower downstream stages (e.g., embedding) can cause memory buildup
-        # Keep pipeline shallow to prevent backpressure
-        max_in_flight = min(4, max(2, total_workers // 4))  # Very conservative
+        # BACKPRESSURE CONTROL: Limit in-flight batches to prevent memory buildup
+        # Use config value if set, otherwise auto-calculate based on loader workers
+        if self.config.executor.max_in_flight is not None:
+            max_in_flight = self.config.executor.max_in_flight
+        else:
+            # Default: match number of loader workers so all can run in parallel
+            max_in_flight = len(self.loader_workers)
         print(f"   Max in-flight batches: {max_in_flight} (backpressure control)")
 
         # Track loader states
@@ -553,15 +554,14 @@ class Executor:
                 yield res
 
             # BACKPRESSURE: After collecting, check if we can resume paused loaders
-            if pipeline_has_capacity and not loader_futures:
-                # Find a paused loader (active but not currently loading)
+            if pipeline_has_capacity and len(loader_futures) < len(active_loaders):
+                # Find paused loaders (active but not currently loading)
                 for worker_id in active_loaders:
-                    if worker_id not in loader_futures:
+                    if worker_id not in loader_futures and len(batch_pipeline) < max_in_flight:
                         future = self.loader_workers[worker_id].get_next_batch.remote(
                             max_records=max_records_per_worker
                         )
                         loader_futures[worker_id] = future
-                        break  # Only resume one at a time
 
         # Wait for all remaining processing tasks to complete
         print("All loaders completed, waiting for remaining processing...")
@@ -570,6 +570,48 @@ class Executor:
                 yield res
 
         print(f"✅ Streaming pipeline completed. Total loaders: {len(self.loader_workers)}")
+
+        # Collect and print loader throughput stats
+        self._print_loader_stats()
+
+    def _print_loader_stats(self):
+        """Collect and print loader throughput statistics."""
+        print("\n" + "=" * 60)
+        print("Data Loader Performance Statistics:")
+        print("=" * 60)
+
+        total_records = 0
+        total_time = 0.0
+        loader_stats = []
+
+        for worker in self.loader_workers:
+            try:
+                stats = ray.get(worker.get_stats.remote(), timeout=5.0)
+                loader_stats.append(stats)
+                total_records += stats.get("records_processed", 0)
+                total_time = max(total_time, stats.get("total_time_sec", 0.0))
+            except Exception as e:
+                print(f"  Warning: Could not get stats from loader: {e}")
+
+        # Print per-loader stats
+        for stats in loader_stats:
+            shard_id = stats.get("shard_id", "?")
+            records = stats.get("records_processed", 0)
+            time_sec = stats.get("total_time_sec", 0.0)
+            throughput = stats.get("throughput_records_per_sec", 0.0)
+            batches = stats.get("batches_produced", 0)
+            print(
+                f"  Loader {shard_id}: {records} records, {batches} batches, "
+                f"{time_sec:.2f}s, {throughput:.2f} rec/s"
+            )
+
+        # Print aggregate stats
+        if total_time > 0:
+            aggregate_throughput = total_records / total_time
+            print("-" * 60)
+            print(f"  [Aggregate] {total_records} records in {total_time:.2f}s")
+            print(f"  [Aggregate] Throughput: {aggregate_throughput:.2f} records/sec")
+        print("=" * 60 + "\n")
 
     def _execute_with_metrics(self) -> Iterator[tuple]:
         """Execute pipeline with metrics tracking enabled."""

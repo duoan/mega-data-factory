@@ -2,7 +2,7 @@
 # Small test to verify min/max replicas work correctly
 
 data_loader:
-  type: HuggingFaceDataLoader
+  type: HuggingFaceLoader
   params:
     dataset_name: "jp1924/Laion400m-1"
     split: "train"

@@ -1,23 +1,42 @@
 # Mega Data Factory
 
-A reproducible, high-throughput, distributed opensource web-scale (hundrends of billions) multimodal data processing pipeline runner for ablation + scoring + deduplication at web scale, built with Ray, featuring Rust-accelerated and GPU-optimized operators.
+A reproducible, high-throughput, distributed open-source pipeline for processing web-scale (hundreds of billions) multimodal datasets. Built on Ray with Rust-accelerated and GPU-optimized operators for ablation, scoring, and deduplication at scale.
 
-This repository aims to replicate SOTA multimodal datapipelines, like
+## Vision
 
-- [Z-Image: An Efficient Image Generation Foundation Model](https://arxiv.org/pdf/2511.22699)
-- [Qwen3-VL](https://arxiv.org/pdf/2511.21631)
-- [Qwen-Image](https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-Image/Qwen_Image.pdf)
-- [HunyuanImage 3.0](https://arxiv.org/pdf/2509.23951)
-- [HunyuanORC](https://github.com/Tencent-Hunyuan/HunyuanOCR)
-- [PaddleOCR 3.0](https://arxiv.org/pdf/2507.05595)
-- [PaddleOCR-VL](https://arxiv.org/pdf/2510.14528)
-- [Seed1.5-VL](https://arxiv.org/pdf/2505.07062)
-- [SeedEdit 3.0](https://arxiv.org/pdf/2506.05083)
-- [BAGEL: The Open-Source Unified Multimodal Model](https://arxiv.org/pdf/2505.14683)
-- [HoneyBee: Data Recipes for Vision-Language Reasoners](https://arxiv.org/pdf/2510.12225)
-- [MiMo-VL](https://arxiv.org/pdf/2506.03569)
-- [Cosmos World Foundation Model Platform for Physical AI](https://arxiv.org/pdf/2501.03575)
-- [Imagen 3](https://arxiv.org/abs/2408.07009)
+**Reproduce SOTA foundation model data pipelines** — from rule-based to model-based, spanning text, image, and multimodal data.
+
+### Text Data Pipelines
+
+| Pipeline | Paper | Status |
+|----------|-------|--------|
+| [FineWeb](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1) | 15T tokens, quality filtering | 🚧 In Progress |
+| [FineWeb-Edu](https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu) | Educational content classifier | 🚧 In Progress |
+| [RefinedWeb](https://arxiv.org/pdf/2306.01116) | URL filtering, trafilatura, dedup | ✅ URL Filter |
+| [DCLM](https://arxiv.org/pdf/2406.11794) | Data curation for LLMs | 📋 Planned |
+| [Dolma](https://arxiv.org/pdf/2402.00159) | Open corpus toolkit | 📋 Planned |
+| [RedPajama-V2](https://together.ai/blog/redpajama-data-v2) | 30T tokens, quality signals | 📋 Planned |
+
+### Image & Vision-Language Pipelines
+
+| Pipeline | Paper | Status |
+|----------|-------|--------|
+| [Z-Image](https://arxiv.org/pdf/2511.22699) | Image generation foundation model | ✅ Implemented |
+| [Imagen 3](https://arxiv.org/abs/2408.07009) | Image quality & AIGC detection | ✅ Implemented |
+| [LAION-5B](https://arxiv.org/pdf/2210.08402) | CLIP filtering, dedup | ✅ Implemented |
+| [DataComp](https://arxiv.org/pdf/2304.14108) | CLIP/SigLIP filtering | ✅ Implemented |
+| [Qwen-VL](https://arxiv.org/pdf/2511.21631) | Vision-language data | 🚧 In Progress |
+| [Seed1.5-VL](https://arxiv.org/pdf/2505.07062) | Vision-language reasoning | 📋 Planned |
+| [HoneyBee](https://arxiv.org/pdf/2510.12225) | Data recipes for VL reasoners | 📋 Planned |
+| [Cosmos](https://arxiv.org/pdf/2501.03575) | World model platform | 📋 Planned |
+
+### Video & Multimodal Pipelines
+
+| Pipeline | Paper | Status |
+|----------|-------|--------|
+| [Panda-70M](https://arxiv.org/pdf/2402.19479) | Video captioning | 📋 Planned |
+| [InternVid](https://arxiv.org/pdf/2307.06942) | Video-language | 📋 Planned |
+| [OpenVid-1M](https://arxiv.org/pdf/2407.02371) | Video generation | 📋 Planned |
 
 
 ## Pipeline Run Reports
@@ -64,37 +83,66 @@ mdf run -c configs/z_image.yaml --max-samples 1000 --batch-size 500
 
 > 🦀 = Rust Accelerated | 🖥️ = GPU Optimized
 
-### Refiners
+### Data Loaders
 
-Refiners enrich records with new fields (inplace).
+| Loader | Description | Features |
+|--------|-------------|----------|
+| `HuggingFaceLoader` | Load from HuggingFace datasets | Streaming, sharding |
+| `CommonCrawlLoader` | Load from CommonCrawl WARC files | 🦀 Rust text extraction, distributed |
 
-| Operator | Description | Acceleration | Doc |
-|----------|-------------|--------------|-----|
-| `ImageMetadataRefiner` | Extracts width, height, format, file size | CPU | [doc](mega_data_factory/operators/refiners/image_metadata.md) |
-| `ImageTechnicalQualityRefiner` | Compression artifacts, information entropy | 🦀 Rust | [doc](mega_data_factory/operators/refiners/image_technical_quality.md) |
-| `ImageVisualDegradationsRefiner` | Color cast, blurriness, watermark, noise | CPU | [doc](mega_data_factory/operators/refiners/image_visual_degradations.md) |
-| `ImageClipEmbeddingRefiner` | CLIP embeddings via OpenCLIP | 🖥️ GPU | [doc](mega_data_factory/operators/refiners/image_clip_embedding.md) |
-| `ImageSigLIPEmbeddingRefiner` | SigLIP2 embeddings via HuggingFace | 🖥️ GPU | [doc](mega_data_factory/operators/refiners/image_siglip_embedding.md) |
-| `ImageAestheticQualityRefiner` | Aesthetic score (requires CLIP emb) | CPU | [doc](mega_data_factory/operators/refiners/image_aesthetic_quality.md) |
-| `ImageAIGCDetectorRefiner` | AI-generated image detection (requires SigLIP emb) | CPU | [doc](mega_data_factory/operators/refiners/image_aigc_detector.md) |
+### Text Operators
 
-### Filters
+**Filters** (rule-based, from [RefinedWeb](https://arxiv.org/pdf/2306.01116)):
 
-Filters remove records based on conditions.
+| Operator | Description | Reference |
+|----------|-------------|-----------|
+| `URLFilter` | Domain blocklist, URL word scoring, quality source exclusion | RefinedWeb §G.1 |
+| `TextLengthFilter` | Filter by character/word count | FineWeb, RefinedWeb |
 
-| Operator | Description | Doc |
-|----------|-------------|-----|
-| `ImageQualityFilter` | Filter by size, quality metrics | [doc](mega_data_factory/operators/filters/image_quality_filter.md) |
+**Coming Soon:**
+- `LanguageFilter` - fastText language detection
+- `PerplexityFilter` - KenLM perplexity scoring
+- `RepetitionFilter` - n-gram repetition detection
+- `QualityClassifierFilter` - Model-based quality (FineWeb-Edu style)
+- `MinHashDeduplicator` - Near-duplicate detection
+- `ExactDeduplicator` - Exact match deduplication
 
-### Deduplicators
+### Image Operators
 
-Deduplicators remove duplicate records.
+**Refiners** (enrich records with new fields):
 
-| Operator | Description | Acceleration | Doc |
-|----------|-------------|--------------|-----|
-| `ImagePhashDeduplicator` | Perceptual hash deduplication | 🦀 Rust | [doc](mega_data_factory/operators/dedup/image_phash_dedup.md) |
+| Operator | Description | Acceleration |
+|----------|-------------|--------------|
+| `ImageMetadataRefiner` | Width, height, format, file size | CPU |
+| `ImageTechnicalQualityRefiner` | Compression artifacts, entropy | 🦀 Rust |
+| `ImageVisualDegradationsRefiner` | Color cast, blur, watermark, noise | CPU |
+| `ImageClipEmbeddingRefiner` | CLIP embeddings (OpenCLIP) | 🖥️ GPU |
+| `ImageSigLIPEmbeddingRefiner` | SigLIP2 embeddings | 🖥️ GPU |
+| `ImageAestheticQualityRefiner` | Aesthetic score (CLIP-based) | CPU |
+| `ImageAIGCDetectorRefiner` | AI-generated image detection | CPU |
+
+**Filters:**
+
+| Operator | Description |
+|----------|-------------|
+| `ImageQualityFilter` | Filter by size, quality metrics, aesthetic score |
+
+**Deduplicators:**
+
+| Operator | Description | Acceleration |
+|----------|-------------|--------------|
+| `ImagePhashDeduplicator` | Perceptual hash deduplication | 🦀 Rust |
+
+### Data Writers
+
+| Writer | Description |
+|--------|-------------|
+| `ParquetDataWriter` | Write to Parquet files |
+| `IcebergDataWriter` | Write to Apache Iceberg tables |
 
 ## Architecture
+
+> **Deep Dive**: See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a comprehensive explanation of the distributed pipeline-parallel design, including ObjectRef chaining, backpressure control, bucketed deduplication, and theoretical scalability analysis.
 
 ### Pipeline Overview
 
@@ -236,116 +284,179 @@ gantt
 
 ## Configuration
 
-### Example `configs/z_image.yaml`
+### Text Pipeline: CommonCrawl Processing
 
 ```yaml
-# Data source
+# configs/example_commoncrawl.yaml
+# RefinedWeb-style text extraction pipeline
+
 data_loader:
-  type: HuggingFaceDataLoader
+  type: CommonCrawlLoader
+  params:
+    crawl_id: "CC-MAIN-2024-51"
+  num_workers: 16  # Distributed WARC loading
+
+stages:
+  - name: content_filtering
+    operators:
+      # RefinedWeb §G.1: URL filtering
+      - name: url_filter
+        params:
+          url_field: "url"
+          score_threshold: 0.5
+          exclude_quality_sources: true  # Exclude Wikipedia, arXiv, etc.
+      # Length filtering
+      - name: text_length_filter
+        params:
+          min_length: 100
+          max_length: 100000
+          text_field: "text"
+    worker:
+      min_replicas: 2
+      max_replicas: 8
+
+data_writer:
+  type: ParquetDataWriter
+  params:
+    output_path: "./output/commoncrawl"
+
+executor:
+  max_samples: 1000000
+  batch_size: 1000
+  metrics:
+    enabled: true
+    generate_report: true
+```
+
+### Image Pipeline: Z-Image Style
+
+```yaml
+# configs/z_image.yaml
+# Image quality + aesthetic + AIGC detection pipeline
+
+data_loader:
+  type: HuggingFaceLoader
   params:
     dataset_name: "jp1924/Laion400m-1"
     split: "train"
     streaming: true
 
-# Processing stages
 stages:
   # Stage 1: Basic metadata and quality (CPU, Rust-accelerated)
   - name: basic_stage
     operators:
       - name: image_metadata_refiner
-      - name: image_technical_quality_refiner  # 🦀 Rust-accelerated
+      - name: image_technical_quality_refiner  # 🦀 Rust
       - name: image_quality_filter
         params:
           min_width: 128
           min_height: 128
           max_compression_artifacts: 0.8
-          min_information_entropy: 0.0
-      - name: image_phash_deduplicator  # 🦀 Rust-accelerated
+      - name: image_phash_deduplicator  # 🦀 Rust
     worker:
-      num_replicas: 2
+      min_replicas: 2
+      max_replicas: 8
       resources:
         cpu: 1
 
   # Stage 2: Embedding extraction (GPU)
   - name: embedding_stage
     operators:
-      # CLIP embeddings for aesthetic scoring
       - name: image_clip_embedding_refiner
         params:
           model_name: "ViT-L-14"
           pretrained: "openai"
-          device: "auto"
-          inference_batch_size: 32
           use_fp16: true
-      # SigLIP2 embeddings for AIGC detection
       - name: image_siglip_embedding_refiner
         params:
           model_name: "google/siglip2-so400m-patch14-384"
-          device: "auto"
-          inference_batch_size: 32
           use_fp16: true
     worker:
-      num_replicas: 1
+      min_replicas: 1
+      max_replicas: 2
       resources:
-        cpu: 2
+        gpu: 1
 
-  # Stage 3: Quality scoring (uses pre-computed embeddings)
+  # Stage 3: Quality scoring
   - name: scoring_stage
     operators:
       - name: image_aesthetic_quality_refiner
-        params:
-          embedding_field: "image_clip_emb_vit_l_14"
       - name: image_aigc_detector_refiner
         params:
-          embedding_field: "image_siglip_emb_so400m_patch14_384"
-          model_path: "./models/image_aigc_detector/classifier.pth"
           threshold: 0.5
     worker:
-      num_replicas: 2
+      min_replicas: 2
+      max_replicas: 4
       resources:
         cpu: 1
 
-# Output
 data_writer:
   type: ParquetDataWriter
   params:
-    output_path: "./parquet_data"
-    table_name: "image_profiles"
+    output_path: "./output/z_image"
 
-# Execution settings
 executor:
-  max_samples: 1000
-  batch_size: 200
-  dedup_num_buckets: 2
+  max_samples: 100000
+  batch_size: 256
+  dedup_num_buckets: 16
+  metrics:
+    enabled: true
+    generate_report: true
 ```
 
 ## Performance
+
+### Text Pipeline (CommonCrawl)
+
+```text
+============================================================
+Pipeline: CommonCrawl text extraction (1M records)
+Hardware: 8 CPU cores
+============================================================
+
+stage_0:
+  [Stage Summary]
+    Input: 1,000,000 → Output: 945,866 (94.6% pass)
+    Total time: 49.11s
+    Throughput: 20,362 records/sec
+
+  URLFilter:           20,362 rec/sec   (98.1% pass)  # RefinedWeb §G.1
+  TextLengthFilter:  1,976,454 rec/sec   (96.4% pass)  # Near instant
+============================================================
+
+Projections:
+  10M records   →  ~8 minutes
+  100M records  →  ~1.4 hours
+  1B records    →  ~14 hours
+```
+
+### Image Pipeline (LAION)
 
 Benchmark on Mac M1 Pro (MPS):
 
 ```text
 ============================================================
-Operator Performance Statistics:
+Pipeline: Image quality + embedding (1K records)
 ============================================================
 
-stage_0:
+stage_0 (CPU, Rust-accelerated):
   [Stage Summary]
-    Records: 1000
+    Input: 1,000 → Output: 898 (89.8% pass)
     Total time: 0.61s
-    Throughput: 1630 records/sec
+    Throughput: 1,630 records/sec
 
-  ImageMetadataRefiner:     27,000 records/sec
-  TechnicalQualityRefiner:   2,500 records/sec (Rust)
-  QualityFilter:         4,200,000 records/sec
-  PhashDeduplicator:         1,500 records/sec (Rust)
+  ImageMetadataRefiner:        27,000 rec/sec
+  ImageTechnicalQualityRefiner: 2,500 rec/sec  🦀 Rust
+  ImageQualityFilter:       4,200,000 rec/sec
+  ImagePhashDeduplicator:      1,500 rec/sec  🦀 Rust
 
-stage_1:
+stage_1 (GPU):
   [Stage Summary]
-    Records: 898
+    Input: 898 → Output: 898
     Total time: 6.80s
     Throughput: 132 records/sec
 
-  ImageClipEmbeddingRefiner:   132 records/sec (GPU)
+  ImageClipEmbeddingRefiner:     132 rec/sec  🖥️ GPU
 ============================================================
 ```
 
@@ -353,47 +464,100 @@ stage_1:
 
 ```text
 mega-data-factory/
-├── mega_data_factory/                  # Main package
-│   ├── __init__.py
+├── mega_data_factory/
 │   ├── cli.py                          # CLI entry point (mdf command)
-│   ├── rust_accelerated_ops.so         # Built Rust extension
-│   ├── framework/                      # Base classes and executor
-│   ├── operators/                      # Operators (refiners, filters, dedup)
-│   ├── models/                         # Model definitions & trainers
-│   ├── loaders/                        # Data loaders
-│   └── writers/                        # Data writers
-├── src/lib.rs                          # Rust source code
-├── scripts/                            # Training scripts
+│   ├── framework/
+│   │   ├── executor.py                 # Pipeline orchestration
+│   │   ├── worker.py                   # RayWorker actors
+│   │   ├── loader_worker.py            # DataLoaderWorker actors
+│   │   ├── backend.py                  # DedupBackend (distributed state)
+│   │   ├── operator.py                 # Operator, Refiner, Filter, Deduplicator
+│   │   ├── config.py                   # YAML config parsing
+│   │   ├── registry.py                 # Component registries
+│   │   └── metrics/                    # Metrics collection & reporting
+│   ├── loaders/
+│   │   ├── huggingface_loader.py       # HuggingFace datasets
+│   │   └── commoncrawl_loader.py       # CommonCrawl WARC files
+│   ├── operators/
+│   │   ├── refiners/                   # Image refiners (metadata, quality, embeddings)
+│   │   ├── filters/                    # Text + Image filters
+│   │   └── dedup/                      # Deduplicators (phash, minhash)
+│   ├── writers/
+│   │   ├── parquet_writer.py           # Parquet output
+│   │   └── iceberg_writer.py           # Apache Iceberg output
+│   └── models/                         # Model trainers (aesthetic, AIGC, k-means)
+├── src/lib.rs                          # 🦀 Rust operators (quality, phash, HTML extraction)
 ├── configs/                            # Pipeline configurations
-├── checkpoints/                        # Model checkpoints
+│   ├── z_image.yaml                    # Image pipeline
+│   └── example_commoncrawl.yaml        # Text pipeline
 ├── tests/                              # Unit tests
-├── benchmarks/                         # Performance benchmarks
 ├── Cargo.toml                          # Rust dependencies
-├── pyproject.toml                      # Python config (maturin build)
-└── README.md
+└── pyproject.toml                      # Python config (maturin build)
 ```
 
 ## Extending the Pipeline
 
-```python
-from mega_data_factory import Refiner
+### Custom Text Filter
 
-class MyCustomRefiner(Refiner):
+```python
+from mega_data_factory.framework import Filter, OperatorRegistry
+
+class MyTextFilter(Filter):
+    def __init__(self, min_words: int = 50):
+        super().__init__()
+        self.min_words = min_words
+
+    def should_keep_batch(self, records: list[dict]) -> list[bool]:
+        return [len(r.get("text", "").split()) >= self.min_words for r in records]
+
+OperatorRegistry.register("MyTextFilter", MyTextFilter)
+```
+
+### Custom Image Refiner
+
+```python
+from mega_data_factory.framework import Refiner, OperatorRegistry
+import pyarrow as pa
+
+class MyImageRefiner(Refiner):
     def refine_batch(self, records: list[dict]) -> None:
         for record in records:
-            record["my_field"] = compute(record)
+            record["my_score"] = compute_score(record["image"])
 
-    def get_output_schema(self) -> dict:
-        return {"my_field": pa.float32()}
+    def get_output_schema(self) -> dict[str, pa.DataType]:
+        return {"my_score": pa.float32()}
+
+OperatorRegistry.register("MyImageRefiner", MyImageRefiner)
 ```
+
+## Key Features
+
+- **Pipeline Parallelism**: Ray ObjectRef chaining enables concurrent stage execution without blocking ([details](docs/ARCHITECTURE.md#pipeline-parallelism-via-objectref-chaining))
+- **Distributed Data Loading**: Sharded file loading with checkpoint support for fault recovery
+- **Backpressure Control**: Bounded in-flight batches prevent OOM on large datasets
+- **Bucketed Deduplication**: Distributed state sharding scales to 100B+ keys ([details](docs/ARCHITECTURE.md#distributed-deduplication))
+- **Rust Acceleration**: 10-25x speedup for image quality, hashing, and HTML extraction
+- **GPU Optimization**: CLIP/SigLIP embedding extraction with FP16 and batch inference
+- **Elastic Scaling**: Dynamic worker allocation with min/max replicas per stage
+- **Config-Driven**: YAML configs define entire pipelines with no code changes
 
 ## References
 
-- [Z-Image](https://arxiv.org/pdf/2511.22699) - Image generation foundation model
-- [Imagen 3](https://arxiv.org/abs/2408.07009) - AIGC content detection
-- [SigLIP2](https://huggingface.co/google/siglip2-so400m-patch14-384) - Vision encoder
+### Text Data Pipelines
+- [RefinedWeb (arXiv:2306.01116)](https://arxiv.org/pdf/2306.01116) - URL filtering, trafilatura, MassiveText dedup
+- [FineWeb](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1) - 15T token dataset, quality filtering
+- [DCLM (arXiv:2406.11794)](https://arxiv.org/pdf/2406.11794) - Data curation for language models
+- [Dolma (arXiv:2402.00159)](https://arxiv.org/pdf/2402.00159) - Open corpus for LLM pretraining
+
+### Image & Vision-Language
+- [Z-Image (arXiv:2511.22699)](https://arxiv.org/pdf/2511.22699) - Image generation foundation model data
+- [DataComp (arXiv:2304.14108)](https://arxiv.org/pdf/2304.14108) - CLIP filtering benchmark
+- [LAION-5B (arXiv:2210.08402)](https://arxiv.org/pdf/2210.08402) - Large-scale image-text dataset
+
+### Tools & Models
 - [OpenCLIP](https://github.com/mlfoundations/open_clip) - CLIP implementation
-- [Improved Aesthetic Predictor](https://github.com/christophschuhmann/improved-aesthetic-predictor) - Aesthetic scoring
+- [SigLIP2](https://huggingface.co/google/siglip2-so400m-patch14-384) - Vision encoder
+- [dom_smoothie](https://github.com/nicr9/dom_smoothie) - Rust readability.js port
 
 ## License
 

@@ -2,7 +2,7 @@
 # Simple, efficient, file-based sharding
 
 data_loader:
-  type: HuggingFaceFileLoader  # New file-based loader
+  type: HuggingFaceLoader
   params:
     dataset_name: "jp1924/Laion400m-1"
     split: "train"

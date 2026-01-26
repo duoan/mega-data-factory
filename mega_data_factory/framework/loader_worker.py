@@ -5,6 +5,7 @@ Enables parallel data loading across multiple workers, with each worker
 loading a shard of the dataset and producing batches.
 """
 
+import time
 from typing import Any
 
 import ray
@@ -59,6 +60,12 @@ class DataLoaderWorker:
         self.checkpoint = None
         self.batches_since_refresh = 0
 
+        # Timing stats for throughput calculation
+        self.start_time: float | None = None
+        self.end_time: float | None = None
+        self.total_load_time: float = 0.0
+        self.batches_produced = 0
+
         # Initialize the data stream once
         self._data_stream = None
         self._initialize_stream()
@@ -103,11 +110,18 @@ class DataLoaderWorker:
                 - 'records_processed': Total records processed so far
                 - 'completed': Boolean indicating if loading is complete
         """
+        # Start timing on first batch
+        if self.start_time is None:
+            self.start_time = time.time()
+
+        batch_start = time.time()
+
         # Use instance max_records if not overridden
         effective_max_records = max_records if max_records is not None else self.max_records
 
         # Check if we've reached max_records
         if effective_max_records and self.records_processed >= effective_max_records:
+            self.end_time = time.time()
             return {
                 "batch": None,
                 "records_processed": self.records_processed,
@@ -149,6 +163,10 @@ class DataLoaderWorker:
                     # Track batches for iterator refresh
                     self.batches_since_refresh += 1
 
+                    # Track timing
+                    self.total_load_time += time.time() - batch_start
+                    self.batches_produced += 1
+
                     return {
                         "batch": batch,
                         "records_processed": self.records_processed,
@@ -164,6 +182,11 @@ class DataLoaderWorker:
                     )
                     self._save_checkpoint()
 
+                    # Track timing
+                    self.total_load_time += time.time() - batch_start
+                    self.batches_produced += 1
+                    self.end_time = time.time()
+
                     # Return partial batch if any
                     return {
                         "batch": batch if batch else None,
@@ -178,6 +201,12 @@ class DataLoaderWorker:
             )
             self._save_checkpoint()
 
+            # Track timing
+            self.total_load_time += time.time() - batch_start
+            if batch:
+                self.batches_produced += 1
+            self.end_time = time.time()
+
             return {
                 "batch": batch if batch else None,
                 "records_processed": self.records_processed,
@@ -191,6 +220,12 @@ class DataLoaderWorker:
                 records_processed=self.records_processed,
             )
             self._save_checkpoint()
+
+            # Track timing
+            self.total_load_time += time.time() - batch_start
+            if batch:
+                self.batches_produced += 1
+            self.end_time = time.time()
 
             return {
                 "batch": batch if batch else None,
@@ -235,14 +270,26 @@ class DataLoaderWorker:
         )
 
     def get_stats(self) -> dict[str, Any]:
-        """Get worker statistics.
+        """Get worker statistics including throughput.
 
         Returns:
-            Dictionary with shard_id, records_processed, and checkpoint info
+            Dictionary with shard_id, records_processed, throughput, and timing info
         """
+        # Calculate throughput
+        total_time = 0.0
+        if self.start_time is not None:
+            end = self.end_time if self.end_time else time.time()
+            total_time = end - self.start_time
+
+        throughput = self.records_processed / total_time if total_time > 0 else 0.0
+
         return {
             "shard_id": self.shard_id,
             "num_shards": self.num_shards,
             "records_processed": self.records_processed,
+            "batches_produced": self.batches_produced,
+            "total_time_sec": total_time,
+            "load_time_sec": self.total_load_time,
+            "throughput_records_per_sec": throughput,
             "has_checkpoint": self.checkpoint is not None,
         }

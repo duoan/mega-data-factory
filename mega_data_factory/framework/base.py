@@ -13,7 +13,7 @@ class DataLoader(ABC):
     """Abstract base class for data loaders.
 
     File-based loaders implement:
-    - get_file_list() -> list[str]: Scan and return all data files
+    - get_file_list(max_samples, num_workers) -> list[str]: Scan and return data files
     - load_files(file_list, ...) -> Iterator: Load assigned files
     """
 

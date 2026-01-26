@@ -62,9 +62,7 @@ class StageWorkerConfig:
         if self.min_replicas < 1:
             raise ValueError(f"min_replicas must be >= 1, got {self.min_replicas}")
         if self.max_replicas < self.min_replicas:
-            raise ValueError(
-                f"max_replicas ({self.max_replicas}) must be >= min_replicas ({self.min_replicas})"
-            )
+            raise ValueError(f"max_replicas ({self.max_replicas}) must be >= min_replicas ({self.min_replicas})")
 
 
 @dataclass
@@ -115,7 +113,7 @@ class MetricsConfig:
     """Configuration for metrics collection and export."""
 
     enabled: bool = True  # Whether to collect metrics
-    output_path: str = "./metrics"  # Base directory for metrics output
+    output_path: str = "./output/metrics"  # Base directory for metrics output
     collect_custom_metrics: bool = False  # Whether to collect custom metrics from operators
     write_on_completion: bool = True  # Whether to write metrics to Parquet on run completion
     generate_report: bool = False  # Whether to generate HTML visualization report
@@ -134,6 +132,7 @@ class ExecutorConfig:
     # This is only used for local development to limit Ray's CPU usage.
     num_cpus: int | None = None
     dedup_num_buckets: int = 2  # Number of buckets for distributed deduplication
+    max_in_flight: int | None = None  # Max batches in pipeline (None = auto, based on num_workers)
     rejected_samples: RejectedSamplesConfig = field(default_factory=RejectedSamplesConfig)  # Rejected samples config
     metrics: MetricsConfig = field(default_factory=MetricsConfig)  # Metrics collection config
 

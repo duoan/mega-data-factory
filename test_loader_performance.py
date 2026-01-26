@@ -1,22 +1,19 @@
 #!/usr/bin/env python3
-"""Test DataLoaderWorker performance improvements."""
+"""Test DataLoaderWorker performance."""
 
 import time
-from mega_data_factory.loaders import HuggingFaceDataLoader
+from mega_data_factory.loaders import HuggingFaceLoader
 from mega_data_factory.framework.loader_worker import DataLoaderWorker
 import ray
 
-# Initialize Ray
 ray.init(ignore_reinit_error=True)
 
-# Create data loader
-loader = HuggingFaceDataLoader(
+loader = HuggingFaceLoader(
     dataset_name="jp1924/Laion400m-1",
     split="train",
     streaming=True,
 )
 
-# Create worker with iterator refresh every 5 batches
 print("Creating DataLoaderWorker...")
 worker = DataLoaderWorker.remote(
     data_loader=loader,
@@ -24,11 +21,10 @@ worker = DataLoaderWorker.remote(
     num_shards=4,
     batch_size=100,
     checkpoint_interval=500,
-    iterator_refresh_interval=5,  # Refresh every 5 batches
+    iterator_refresh_interval=5,
 )
 
-print("\nFetching 10 batches to test performance...")
-print("(Watch for 'Initializing data stream' and 'Refreshing iterator' messages)\n")
+print("\nFetching 10 batches...\n")
 
 start_time = time.time()
 for i in range(10):
@@ -37,17 +33,10 @@ for i in range(10):
     batch_time = time.time() - batch_start
 
     if result["batch"]:
-        print(
-            f"Batch {i+1}: {len(result['batch'])} records, "
-            f"time: {batch_time:.2f}s, "
-            f"total: {result['records_processed']}"
-        )
+        print(f"Batch {i+1}: {len(result['batch'])} records, time: {batch_time:.2f}s")
     else:
         print(f"Batch {i+1}: Completed")
         break
 
-total_time = time.time() - start_time
-print(f"\n✅ Total time: {total_time:.2f}s")
-print(f"📊 Expected: 2 stream initializations (initial + 1 refresh after 5 batches)")
-
+print(f"\nTotal time: {time.time() - start_time:.2f}s")
 ray.shutdown()

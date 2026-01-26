@@ -91,7 +91,7 @@ mega_data_factory/
 │   ├── refiners/          # ImageMetadataRefiner, ImageClipEmbeddingRefiner, etc.
 │   ├── filters/           # ImageQualityFilter
 │   └── dedup/             # ImagePhashDeduplicator
-├── loaders/               # HuggingFaceDataLoader, CommonCrawlLoader
+├── loaders/               # HuggingFaceLoader, CommonCrawlLoader
 ├── writers/               # ParquetDataWriter, IcebergWriter
 └── models/                # ML model trainers (aesthetic, AIGC detector, k-means)
 ```
@@ -121,7 +121,7 @@ For `Deduplicator`: implement `get_dedup_keys_batch(records) -> list[str]`
 
 ```yaml
 data_loader:
-  type: HuggingFaceDataLoader
+  type: HuggingFaceLoader
   params: {...}
   num_workers: 8  # Parallel loader workers
 

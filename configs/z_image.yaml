@@ -1,7 +1,7 @@
 # Pipeline Configuration for Z-Image Data Profiling
 
 data_loader:
-  type: HuggingFaceDataLoader
+  type: HuggingFaceLoader
   params:
     dataset_name: "jp1924/Laion400m-1"
     split: "train"

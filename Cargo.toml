@@ -12,6 +12,9 @@ pyo3 = { version = "0.27.2", features = ["extension-module"] }
 image = "0.25"
 rayon = "1.11"
 image_hasher = "3.0"
+dom_smoothie = "0.5"
+warc = "0.3"
+
 
 [profile.release]
 opt-level = 3
