@@ -28,9 +28,9 @@ class DataLoaderWorker:
         num_shards: int,
         batch_size: int,
         checkpoint_interval: int = 1000,
-        iterator_refresh_interval: int = 10,
         assigned_files: list[str] | None = None,
         max_records: int | None = None,
+        **kwargs,  # Accept extra args for compatibility
     ):
         """Initialize data loader worker.
 
@@ -40,7 +40,6 @@ class DataLoaderWorker:
             num_shards: Total number of shards
             batch_size: Number of records per batch
             checkpoint_interval: Save checkpoint every N records
-            iterator_refresh_interval: Refresh iterator every N batches (0 = never)
             assigned_files: List of files assigned to this worker
             max_records: Maximum records to load (None = unlimited)
         """
@@ -49,7 +48,6 @@ class DataLoaderWorker:
         self.num_shards = num_shards
         self.batch_size = batch_size
         self.checkpoint_interval = checkpoint_interval
-        self.iterator_refresh_interval = iterator_refresh_interval
         self.assigned_files = assigned_files
         self.max_records = max_records
 
@@ -58,7 +56,6 @@ class DataLoaderWorker:
 
         self.records_processed = 0
         self.checkpoint = None
-        self.batches_since_refresh = 0
 
         # Timing stats for throughput calculation
         self.start_time: float | None = None
@@ -71,16 +68,11 @@ class DataLoaderWorker:
         self._initialize_stream()
 
     def _initialize_stream(self):
-        """Initialize or refresh the data stream iterator."""
-        print(
-            f"[DataLoaderWorker {self.shard_id}] Initializing data stream "
-            f"(processed: {self.records_processed})"
-        )
+        """Initialize the data stream iterator."""
+        print(f"[DataLoaderWorker {self.shard_id}] Initializing data stream")
 
         if not hasattr(self.data_loader, "load_files"):
-            raise ValueError(
-                f"Loader {type(self.data_loader).__name__} does not support load_files()"
-            )
+            raise ValueError(f"Loader {type(self.data_loader).__name__} does not support load_files()")
 
         self._data_stream = self.data_loader.load_files(
             file_list=self.assigned_files,
@@ -88,17 +80,12 @@ class DataLoaderWorker:
             checkpoint=self.checkpoint,
         )
 
-        self.batches_since_refresh = 0
-
     def get_next_batch(
         self,
         max_records: int | None = None,
         **kwargs,
     ) -> dict[str, Any] | None:
         """Get the next batch from this shard (streaming mode).
-
-        Uses a persistent iterator that is refreshed periodically (based on
-        iterator_refresh_interval) to prevent memory accumulation.
 
         IMPORTANT: Returns batch data as ObjectRef to avoid pulling data back to driver.
         The batch_ref can be passed directly to downstream stages for zero-copy processing.
@@ -133,36 +120,16 @@ class DataLoaderWorker:
                 "completed": True,
             }
 
-        # Refresh iterator if configured and threshold reached
-        if (
-            self.iterator_refresh_interval > 0
-            and self.batches_since_refresh >= self.iterator_refresh_interval
-        ):
-            print(
-                f"[DataLoaderWorker {self.shard_id}] Refreshing iterator "
-                f"(batches: {self.batches_since_refresh})"
-            )
-            self._initialize_stream()
-
         batch = []
-        records_in_this_batch = 0
-
-        print(f"[DataLoaderWorker {self.shard_id}] Starting to collect batch (batch_size={self.batch_size})")
 
         try:
             for record in self._data_stream:
                 batch.append(record)
                 self.records_processed += 1
-                records_in_this_batch += 1
-
-                # Log progress every 100 records
-                if records_in_this_batch % 100 == 0:
-                    print(f"[DataLoaderWorker {self.shard_id}] Collected {records_in_this_batch} records...")
 
                 # Return batch when full
                 if len(batch) >= self.batch_size:
-                    print(f"[DataLoaderWorker {self.shard_id}] Batch full! Returning {len(batch)} records")
-                    # Update checkpoint to current position
+                    # Update checkpoint
                     self.checkpoint = self.data_loader.create_checkpoint(
                         shard_id=self.shard_id,
                         records_processed=self.records_processed,
@@ -171,9 +138,6 @@ class DataLoaderWorker:
                     # Save checkpoint periodically
                     if self.records_processed % self.checkpoint_interval == 0:
                         self._save_checkpoint()
-
-                    # Track batches for iterator refresh
-                    self.batches_since_refresh += 1
 
                     # Track timing
                     self.total_load_time += time.time() - batch_start
@@ -190,19 +154,16 @@ class DataLoaderWorker:
 
                 # Check max_records limit
                 if effective_max_records and self.records_processed >= effective_max_records:
-                    # Update checkpoint
                     self.checkpoint = self.data_loader.create_checkpoint(
                         shard_id=self.shard_id,
                         records_processed=self.records_processed,
                     )
                     self._save_checkpoint()
 
-                    # Track timing
                     self.total_load_time += time.time() - batch_start
                     self.batches_produced += 1
                     self.end_time = time.time()
 
-                    # Return partial batch if any (as ObjectRef)
                     if batch:
                         batch_ref = ray.put(batch)
                         return {
@@ -225,13 +186,11 @@ class DataLoaderWorker:
             )
             self._save_checkpoint()
 
-            # Track timing
             self.total_load_time += time.time() - batch_start
             if batch:
                 self.batches_produced += 1
             self.end_time = time.time()
 
-            # Return partial batch as ObjectRef
             if batch:
                 batch_ref = ray.put(batch)
                 return {
@@ -248,20 +207,17 @@ class DataLoaderWorker:
             }
 
         except StopIteration:
-            # Iterator exhausted
             self.checkpoint = self.data_loader.create_checkpoint(
                 shard_id=self.shard_id,
                 records_processed=self.records_processed,
             )
             self._save_checkpoint()
 
-            # Track timing
             self.total_load_time += time.time() - batch_start
             if batch:
                 self.batches_produced += 1
             self.end_time = time.time()
 
-            # Return partial batch as ObjectRef
             if batch:
                 batch_ref = ray.put(batch)
                 return {
@@ -278,48 +234,25 @@ class DataLoaderWorker:
             }
 
     def _save_checkpoint(self):
-        """Save checkpoint for resume support.
-
-        Currently stores checkpoint in memory. In production, this should
-        be persisted to external storage (Redis, S3, or file system).
-        """
+        """Save checkpoint for resume support."""
         self.checkpoint = self.data_loader.create_checkpoint(
             shard_id=self.shard_id,
             records_processed=self.records_processed,
         )
-        print(
-            f"[DataLoaderWorker {self.shard_id}] Checkpoint: "
-            f"{self.records_processed} records processed"
-        )
+        print(f"[DataLoaderWorker {self.shard_id}] Checkpoint: {self.records_processed} records")
 
     def get_checkpoint(self) -> dict[str, Any]:
-        """Get current checkpoint data.
-
-        Returns:
-            Checkpoint dictionary
-        """
+        """Get current checkpoint data."""
         return self.checkpoint or {}
 
     def restore_checkpoint(self, checkpoint: dict[str, Any]):
-        """Restore from checkpoint.
-
-        Args:
-            checkpoint: Checkpoint data from previous run
-        """
+        """Restore from checkpoint."""
         self.checkpoint = checkpoint
         self.records_processed = checkpoint.get("records_processed", 0)
-        print(
-            f"[DataLoaderWorker {self.shard_id}] Restored checkpoint: "
-            f"{self.records_processed} records"
-        )
+        print(f"[DataLoaderWorker {self.shard_id}] Restored checkpoint: {self.records_processed} records")
 
     def get_stats(self) -> dict[str, Any]:
-        """Get worker statistics including throughput.
-
-        Returns:
-            Dictionary with shard_id, records_processed, throughput, and timing info
-        """
-        # Calculate throughput
+        """Get worker statistics including throughput."""
         total_time = 0.0
         if self.start_time is not None:
             end = self.end_time if self.end_time else time.time()

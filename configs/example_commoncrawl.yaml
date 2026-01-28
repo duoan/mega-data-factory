@@ -4,7 +4,7 @@ data_loader:
   type: CommonCrawlLoader
   params:
     crawl_id: "CC-MAIN-2024-51"
-  num_workers: 16
+  num_workers: 32
 
 stages:
   - name: content_filtering
@@ -21,8 +21,8 @@ stages:
         params:
           text_field: "text"
     worker:
-      min_replicas: 16
-      max_replicas: 16
+      min_replicas: 8
+      max_replicas: 8
 
 data_writer:
   type: ParquetDataWriter
